@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Магическая битва: Финальная битва | Годжо, Сукуна, Юта, Итадори</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Segoe UI', 'Arial', sans-serif;
+      background: #000;
+    }
+    #ui {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: #f0e6d2;
+      background: rgba(10, 5, 20, 0.85);
+      padding: 18px 25px;
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+      pointer-events: none;
+      user-select: none;
+      border: 1px solid rgba(200, 180, 255, 0.35);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.8);
+      z-index: 10;
+    }
+    .health-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 8px 0;
+    }
+    #health-bar {
+      width: 180px;
+      height: 16px;
+      background: #2a1f3a;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #5a4a6a;
+    }
+    #health-fill {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, #ff5e5e, #c42e2e);
+      transition: width 0.25s ease;
+      box-shadow: 0 0 12px #ff4444;
+    }
+    #sukuna-health-fill {
+      background: linear-gradient(90deg, #d98cff, #7a2be2);
+      box-shadow: 0 0 12px #b266ff;
+    }
+    .info-text {
+      font-size: 15px;
+      font-weight: bold;
+      text-shadow: 2px 2px 3px black;
+      letter-spacing: 0.5px;
+    }
+    #message {
+      position: absolute;
+      bottom: 35px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #fff5e0;
+      font-size: 20px;
+      font-weight: bold;
+      text-shadow: 0 0 20px black;
+      background: rgba(20, 5, 30, 0.8);
+      padding: 10px 30px;
+      border-radius: 40px;
+      backdrop-filter: blur(8px);
+      border: 1px solid #aa88cc;
+      pointer-events: none;
+      z-index: 10;
+      white-space: nowrap;
+    }
+    .controls {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      color: #ddd;
+      background: rgba(0,0,0,0.75);
+      padding: 14px 22px;
+      border-radius: 14px;
+      font-size: 14px;
+      backdrop-filter: blur(8px);
+      border: 1px solid #555;
+      line-height: 1.7;
+      z-index: 10;
+    }
+    .game-over {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #ff4d4d;
+      font-size: 64px;
+      font-weight: 900;
+      text-shadow: 0 0 40px black, 0 0 20px red;
+      background: rgba(0,0,0,0.85);
+      padding: 30px 60px;
+      border-radius: 20px;
+      display: none;
+      backdrop-filter: blur(15px);
+      border: 3px solid #ff3333;
+      white-space: nowrap;
+      letter-spacing: 3px;
+      z-index: 20;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div class="info-text">⚡ Юджи Итадори (Игрок)</div>
+    <div class="health-row">
+      <span>❤️ <span id="player-hp">25</span>/25</span>
+      <div id="health-bar"><div id="health-fill" style="width: 100%;"></div></div>
+    </div>
+    <div class="info-text" style="margin-top: 14px;">👹 Рёмен Сукуна</div>
+    <div class="health-row">
+      <span>💜 <span id="sukuna-hp">50</span>/50</span>
+      <div id="health-bar"><div id="sukuna-health-fill" style="width: 100%;"></div></div>
+    </div>
+    <div style="margin-top: 10px; font-size:13px; color:#ccaaff;">🌀 Юта (Годжо): 2 урона/сек вблизи</div>
+  </div>
+  <div id="message">🔥 ЛКМ – атака | Q – рывок | WASD – движение</div>
+  <div class="controls">
+    <span style="color:#ffaa66;">W A S D</span> – движение<br>
+    <span style="color:#ff6666;">ЛКМ</span> – удар (1 урон)<br>
+    <span style="color:#66aaff;">Q</span> – рывок (1.5 сек)<br>
+    Сукуна убивает за 5 ударов
+  </div>
+  <div id="gameover-screen" class="game-over">ИГРА ОКОНЧЕНА</div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.126.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.126.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+    // ---------- СЦЕНА ----------
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1025);
+    scene.fog = new THREE.FogExp2(0x1a1025, 0.004);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.5, 200);
+    camera.position.set(12, 9, 18);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    document.body.appendChild(renderer.domElement);
+
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0px';
+    labelRenderer.domElement.style.pointerEvents = 'none';
+    document.body.appendChild(labelRenderer.domElement);
+
+    // Освещение
+    const ambient = new THREE.AmbientLight(0x404066);
+    scene.add(ambient);
+    const sun = new THREE.DirectionalLight(0xffe0cc, 1.0);
+    sun.position.set(25, 35, 10);
+    sun.castShadow = true;
+    sun.receiveShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 80;
+    sun.shadow.camera.left = -25;
+    sun.shadow.camera.right = 25;
+    sun.shadow.camera.top = 25;
+    sun.shadow.camera.bottom = -20;
+    scene.add(sun);
+
+    const purpleLight = new THREE.PointLight(0x8855cc, 0.8, 35);
+    purpleLight.position.set(-6, 4, -8);
+    scene.add(purpleLight);
+
+    // ---------- БОЛЬШОЕ ПОЛЕ БОЯ ----------
+    const groundGeo = new THREE.CircleGeometry(28, 80);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x3a2a4a,
+      roughness: 0.85,
+      metalness: 0.1,
+    });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI/2;
+    ground.position.y = -0.05;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Разрушенные здания
+    function createRuinedBuilding(x, z, scale=1) {
+      const group = new THREE.Group();
+      const brickMat = new THREE.MeshStandardMaterial({ color: 0x6b5b7b, roughness: 0.8 });
+      const darkMat = new THREE.MeshStandardMaterial({ color: 0x3a3040, roughness: 0.9 });
+
+      const base = new THREE.Mesh(new THREE.BoxGeometry(2.5*scale, 0.4*scale, 2.5*scale), darkMat);
+      base.position.y = 0.2*scale;
+      base.castShadow = true; base.receiveShadow = true;
+      group.add(base);
+
+      for (let i=0; i<3; i++) {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(0.4*scale, 1.8*scale, 1.2*scale), brickMat);
+        wall.position.set((i-1)*0.9*scale, 1.1*scale, 0);
+        wall.rotation.z = (Math.random()-0.5)*0.3;
+        wall.rotation.x = (Math.random()-0.5)*0.2;
+        wall.castShadow = true; wall.receiveShadow = true;
+        group.add(wall);
+      }
+
+      for (let j=0; j<5; j++) {
+        const rubble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3*scale, 0), brickMat);
+        rubble.position.set((Math.random()-0.5)*2*scale, 0.15*scale, (Math.random()-0.5)*2*scale);
+        rubble.castShadow = true; rubble.receiveShadow = true;
+        group.add(rubble);
+      }
+
+      group.position.set(x, 0, z);
+      group.rotation.y = Math.random()*Math.PI;
+      scene.add(group);
+    }
+
+    const buildingRadius = 24;
+    for (let i=0; i<16; i++) {
+      const angle = (i/16)*Math.PI*2;
+      const x = Math.cos(angle)*buildingRadius;
+      const z = Math.sin(angle)*buildingRadius;
+      createRuinedBuilding(x, z, 0.8 + Math.random()*1.3);
+    }
+
+    for (let i=0; i<60; i++) {
+      const angle = Math.random()*Math.PI*2;
+      const r = 6 + Math.random()*20;
+      const rock = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.4+Math.random()*0.9, 0),
+        new THREE.MeshStandardMaterial({ color: 0x5a4a6a, roughness: 0.7 })
+      );
+      rock.position.set(Math.cos(angle)*r, 0.15, Math.sin(angle)*r);
+      rock.castShadow = true; rock.receiveShadow = true;
+      scene.add(rock);
+    }
+
+    // ---------- СИСТЕМА ЭФФЕКТОВ ----------
+    const effects = [];
+
+    function createFireEffect(position, color, intensity=1) {
+      const group = new THREE.Group();
+      const particleCount = 25;
+      const particles = [];
+
+      for (let i = 0; i < particleCount; i++) {
+        const geo = new THREE.SphereGeometry(0.06 * intensity, 4, 4);
+        const mat = new THREE.MeshBasicMaterial({
+          color: color,
+          transparent: true,
+          opacity: 0.95
+        });
+        const particle = new THREE.Mesh(geo, mat);
+        particle.position.set(
+          (Math.random() - 0.5) * 1.2 * intensity,
+          Math.random() * 1.8 * intensity,
+          (Math.random() - 0.5) * 1.2 * intensity
+        );
+        particle.userData = {
+          velocity: new THREE.Vector3(
+            (Math.random() - 0.5) * 0.08,
+            Math.random() * 0.12,
+            (Math.random() - 0.5) * 0.08
+          ),
+          life: 0.4 + Math.random() * 0.4
+        };
+        group.add(particle);
+        particles.push(particle);
+      }
+
+      group.position.copy(position);
+      scene.add(group);
+
+      effects.push({
+        group: group,
+        particles: particles,
+        life: 0.6,
+        maxLife: 0.6
+      });
+    }
+
+    function createDashTrail(startPos, endPos, color) {
+      const group = new THREE.Group();
+      const direction = endPos.clone().sub(startPos);
+      const length = direction.length();
+      const steps = 15;
+
+      for (let i = 0; i < steps; i++) {
+        const pos = startPos.clone().add(direction.clone().multiplyScalar(i / steps));
+        const geo = new THREE.SphereGeometry(0.15, 6, 6);
+        const mat = new THREE.MeshBasicMaterial({
+          color: color,
+          transparent: true,
+          opacity: 0.7 - (i / steps) * 0.5
+        });
+        const sphere = new THREE.Mesh(geo, mat);
+        sphere.position.copy(pos);
+        sphere.position.y += 1;
+        group.add(sphere);
+      }
+
+      scene.add(group);
+
+      effects.push({
+        group: group,
+        life: 0.5,
+        maxLife: 0.5
+      });
+    }
+
+    // ---------- ПЕРСОНАЖИ ----------
+    function createCharacter(bodyColor, headColor, hairColor, height=2.1) {
+      const group = new THREE.Group();
+
+      const bodyGeo = new THREE.CylinderGeometry(0.6, 0.7, height*0.55, 10);
+      const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.5 });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.castShadow = true; body.receiveShadow = true;
+      body.position.y = height*0.28;
+      group.add(body);
+
+      const headGeo = new THREE.SphereGeometry(0.5, 20, 20);
+      const headMat = new THREE.MeshStandardMaterial({ color: headColor, roughness: 0.3 });
+      const head = new THREE.Mesh(headGeo, headMat);
+      head.castShadow = true; head.receiveShadow = true;
+      head.position.y = height*0.68;
+      group.add(head);
+
+      const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.4 });
+      for (let i=0; i<12; i++) {
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.65, 6), hairMat);
+        const angle = (i/12)*Math.PI*2;
+        spike.position.set(Math.cos(angle)*0.55, height*0.72, Math.sin(angle)*0.55);
+        spike.rotation.x = 0.35;
+        spike.rotation.z = angle;
+        spike.castShadow = true;
+        group.add(spike);
+      }
+
+      const armGeo = new THREE.CylinderGeometry(0.2, 0.22, 0.85, 8);
+      const armMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.6 });
+      const leftArm = new THREE.Mesh(armGeo, armMat);
+      leftArm.position.set(-0.75, height*0.45, 0);
+      leftArm.rotation.z = 0.25;
+      leftArm.castShadow = true;
+      group.add(leftArm);
+      const rightArm = new THREE.Mesh(armGeo, armMat);
+      rightArm.position.set(0.75, height*0.45, 0);
+      rightArm.rotation.z = -0.25;
+      rightArm.castShadow = true;
+      group.add(rightArm);
+
+      return group;
+    }
+
+    function createLabel(text, color='white') {
+      const div = document.createElement('div');
+      div.textContent = text;
+      div.style.color = color;
+      div.style.fontWeight = 'bold';
+      div.style.fontSize = '16px';
+      div.style.textShadow = '2px 2px 4px black';
+      div.style.background = 'rgba(0,0,0,0.6)';
+      div.style.padding = '2px 10px';
+      div.style.borderRadius = '15px';
+      return new CSS2DObject(div);
+    }
+
+    const player = createCharacter(0x2a3f6e, '#f0c8a0', '#d44a6a', 2.1);
+    player.position.set(0, 0, 6);
+    const pLabel = createLabel('Юджи Итадори', '#ffaa88');
+    pLabel.position.set(0, 2.7, 0);
+    player.add(pLabel);
+    scene.add(player);
+
+    const sukuna = createCharacter(0x6b1a1a, '#f5d5b8', '#ff5555', 2.25);
+    sukuna.position.set(0, 0, -8);
+    const sLabel = createLabel('Сукуна', '#ff5555');
+    sLabel.position.set(0, 2.9, 0);
+    sukuna.add(sLabel);
+    scene.add(sukuna);
+
+    const yutaGojo = createCharacter(0x4a4a8a, '#f8f0e0', '#ffffff', 2.2);
+    yutaGojo.position.set(3, 0, -5);
+    const yLabel = createLabel('Юта (Годжо)', '#ccccff');
+    yLabel.position.set(0, 2.8, 0);
+    yutaGojo.add(yLabel);
+    const aura = new THREE.PointLight(0x4466ff, 0.7, 5);
+    yutaGojo.add(aura);
+    scene.add(yutaGojo);
+
+    // ---------- ИГРОВЫЕ ПЕРЕМЕННЫЕ ----------
+    const playerState = {
+      hp: 25, maxHp: 25,
+      speed: 0.15,
+      dashCooldown: 0,
+      dashMaxCooldown: 1.5,
+      invincible: false,
+      dashDistance: 5.5
+    };
+    const sukunaState = {
+      hp: 50, maxHp: 50,
+      attackTimer: 0,
+      attackInterval: 1.2,
+      moveTimer: 0,
+      moveDir: new THREE.Vector3(),
+      damagePerHit: 5
+    };
+    const yutaState = {
+      moveTimer: 0,
+      moveDir: new THREE.Vector3(),
+      attackTimer: 0,
+      attackInterval: 0.5,
+      attackRange: 3.0
+    };
+
+    const keys = { w: false, a: false, s: false, d: false };
+    let gameOver = false;
+    const attackRange = 3.2;
+    const borderLimit = 22;
+
+    const playerHpSpan = document.getElementById('player-hp');
+    const sukunaHpSpan = document.getElementById('sukuna-hp');
+    const playerFill = document.getElementById('health-fill');
+    const sukunaFill = document.getElementById('sukuna-health-fill');
+    const gameOverDiv = document.getElementById('gameover-screen');
+    const msgDiv = document.getElementById('message');
+
+    function updateUI() {
+      playerHpSpan.textContent = Math.max(0, playerState.hp);
+      sukunaHpSpan.textContent = Math.max(0, Math.floor(sukunaState.hp));
+      playerFill.style.width = `${(playerState.hp/playerState.maxHp)*100}%`;
+      sukunaFill.style.width = `${(sukunaState.hp/sukunaState.maxHp)*100}%`;
+    }
+
+    function clampPosition(obj) {
+      obj.position.x = Math.max(-borderLimit, Math.min(borderLimit, obj.position.x));
+      obj.position.z = Math.max(-borderLimit, Math.min(borderLimit, obj.position.z));
+    }
+
+    function endGame(win) {
+      if (gameOver) return;
+      gameOver = true;
+      gameOverDiv.style.display = 'block';
+      if (win) {
+        gameOverDiv.style.color = '#ffcc00';
+        gameOverDiv.textContent = 'ПОБЕДА!';
+        msgDiv.textContent = '🏆 Сукуна повержен!';
+      } else {
+        gameOverDiv.style.color = '#ff4444';
+        gameOverDiv.textContent = 'ИГРА ОКОНЧЕНА';
+        msgDiv.textContent = '💀 Юджи пал...';
+      }
+    }
+
+    function damagePlayer(amount) {
+      if (gameOver || playerState.invincible) return;
+      playerState.hp -= amount;
+      updateUI();
+
+      createFireEffect(player.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff0000, 0.7);
+
+      if (playerState.hp <= 0) {
+        playerState.hp = 0;
+        updateUI();
+        endGame(false);
+      }
+    }
+
+    function damageSukuna(amount) {
+      if (gameOver) return;
+      sukunaState.hp -= amount;
+      updateUI();
+      if (sukunaState.hp <= 0) {
+        sukunaState.hp = 0;
+        updateUI();
+        endGame(true);
+      }
+    }
+
+    function playerAttack() {
+      if (gameOver) return;
+      const dist = player.position.distanceTo(sukuna.position);
+      if (dist <= attackRange) {
+        damageSukuna(1);
+
+        const attackPos = sukuna.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+        createFireEffect(attackPos, 0xff3300, 1.2);
+
+        msgDiv.textContent = '⚡ Красный удар! -1 HP Сукуне';
+      } else {
+        msgDiv.textContent = '❌ Слишком далеко';
+      }
+    }
+
+    function dash() {
+      if (gameOver || playerState.dashCooldown > 0) return;
+
+      const startPos = player.position.clone();
+      playerState.dashCooldown = playerState.dashMaxCooldown;
+      playerState.invincible = true;
+
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      dir.y = 0; dir.normalize();
+
+      player.position.addScaledVector(dir, playerState.dashDistance);
+      clampPosition(player);
+
+      // Создаем след рывка
+      createDashTrail(startPos, player.position.clone(), 0x00aaff);
+      createFireEffect(startPos.clone().add(new THREE.Vector3(0, 0.5, 0)), 0x00aaff, 1.0);
+      createFireEffect(player.position.clone().add(new THREE.Vector3(0, 0.5, 0)), 0x00aaff, 0.8);
+
+      setTimeout(() => { playerState.invincible = false; }, 300);
+
+      msgDiv.textContent = '💨 Рывок!';
+    }
+
+    // Управление
+    window.addEventListener('keydown', e => {
+      const k = e.key.toLowerCase();
+      if (k === 'w' || k === 'a' || k === 's' || k === 'd') {
+        keys[k] = true;
+        e.preventDefault();
+      }
+      if (k === 'q') {
+        e.preventDefault();
+        dash();
+      }
+    });
+
+    window.addEventListener('keyup', e => {
+      const k = e.key.toLowerCase();
+      if (k === 'w' || k === 'a' || k === 's' || k === 'd') {
+        keys[k] = false;
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener('mousedown', e => {
+      if (e.button === 0) {
+        e.preventDefault();
+        playerAttack();
+      }
+    });
+
+    window.addEventListener('contextmenu', e => e.preventDefault());
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function randomDirection() {
+      const angle = Math.random() * Math.PI * 2;
+      return new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+    }
+
+    sukunaState.moveDir = randomDirection();
+    yutaState.moveDir = randomDirection();
+
+    // ---------- ИГРОВОЙ ЦИКЛ ----------
+    let lastTime = performance.now();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const time = performance.now();
+      const delta = Math.min(0.1, (time - lastTime) / 1000);
+      lastTime = time;
+
+      if (!gameOver) {
+        // Движение игрока
+        const forward = new THREE.Vector3();
+        const right = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        forward.y = 0; forward.normalize();
+        right.crossVectors(forward, camera.up).normalize();
+
+        const move = new THREE.Vector3();
+        if (keys.w) move.add(forward);
+        if (keys.s) move.sub(forward);
+        if (keys.d) move.add(right);
+        if (keys.a) move.sub(right);
+
+        if (move.lengthSq() > 0) {
+          move.normalize();
+          player.position.addScaledVector(move, playerState.speed);
+          player.rotation.y = Math.atan2(move.x, move.z);
+        }
+        clampPosition(player);
+
+        // Движение Сукуны
+        sukunaState.moveTimer += delta;
+        if (sukunaState.moveTimer > 2.5) {
+          sukunaState.moveTimer = 0;
+          if (Math.random() < 0.7) {
+            sukunaState.moveDir = player.position.clone().sub(sukuna.position).normalize();
+          } else {
+            sukunaState.moveDir = randomDirection();
+          }
+        }
+        sukuna.position.addScaledVector(sukunaState.moveDir, 0.07);
+        clampPosition(sukuna);
+        sukuna.lookAt(player.position.x, sukuna.position.y, player.position.z);
+
+        // Движение Юты - преследует Сукуну для ближнего боя
+        yutaState.moveTimer += delta;
+        if (yutaState.moveTimer > 1.5) {
+          yutaState.moveTimer = 0;
+          const toSukuna = sukuna.position.clone().sub(yutaGojo.position);
+          const distToSukuna = toSukuna.length();
+
+          if (distToSukuna > yutaState.attackRange) {
+            // Двигается к Сукуне
+            yutaState.moveDir = toSukuna.normalize();
+          } else {
+            // Кружит вокруг Сукуны на близкой дистанции
+            const perp = new THREE.Vector3(-toSukuna.z, 0, toSukuna.x).normalize();
+            yutaState.moveDir = perp.multiplyScalar(Math.random() > 0.5 ? 1 : -1)
+              .add(toSukuna.normalize().multiplyScalar(0.3))
+              .normalize();
+          }
+        }
+        yutaGojo.position.addScaledVector(yutaState.moveDir, 0.1);
+        clampPosition(yutaGojo);
+        yutaGojo.lookAt(sukuna.position.x, yutaGojo.position.y, sukuna.position.z);
+
+        // Кулдаун рывка
+        if (playerState.dashCooldown > 0) {
+          playerState.dashCooldown -= delta;
+          if (playerState.dashCooldown < 0) playerState.dashCooldown = 0;
+        }
+
+        // Атака Сукуны
+        sukunaState.attackTimer += delta;
+        if (sukunaState.attackTimer >= sukunaState.attackInterval) {
+          sukunaState.attackTimer = 0;
+          if (sukuna.position.distanceTo(player.position) <= 3.3) {
+            damagePlayer(sukunaState.damagePerHit);
+            msgDiv.textContent = `👹 Сукуна атакует! -${sukunaState.damagePerHit} HP`;
+            createFireEffect(player.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff0000, 1.0);
+          }
+        }
+
+        // Юта атакует только вблизи
+        const yutaDistToSukuna = yutaGojo.position.distanceTo(sukuna.position);
+        yutaState.attackTimer += delta;
+
+        if (yutaDistToSukuna <= yutaState.attackRange && yutaState.attackTimer >= yutaState.attackInterval) {
+          yutaState.attackTimer = 0;
+          damageSukuna(1); // 2 урона в секунду вблизи
+
+          // Синий эффект атаки Юты
+          createFireEffect(
+            sukuna.position.clone().add(new THREE.Vector3(
+              (Math.random()-0.5)*1.5,
+              1.5,
+              (Math.random()-0.5)*1.5
+            )),
+            0x4488ff,
+            0.8
+          );
+
+          if (Math.random() < 0.3) {
+            msgDiv.textContent = '🌀 Юта атакует синим пламенем!';
+          }
+        }
+
+        // Обновление сообщения
+        if (playerState.dashCooldown > 0) {
+          msgDiv.textContent = `⏳ Рывок через ${playerState.dashCooldown.toFixed(1)}с`;
+        } else if (!gameOver) {
+          msgDiv.textContent = '⚔️ ЛКМ – удар | Q – рывок (1.5с) | WASD – движение';
+        }
+      }
+
+      // Обновление эффектов
+      for (let i = effects.length - 1; i >= 0; i--) {
+        const effect = effects[i];
+        effect.life -= delta;
+
+        if (effect.life <= 0) {
+          scene.remove(effect.group);
+          effects.splice(i, 1);
+        } else {
+          const progress = effect.life / effect.maxLife;
+
+          if (effect.particles) {
+            effect.particles.forEach(p => {
+              p.position.add(p.userData.velocity);
+              p.material.opacity = progress * 0.9;
+              p.scale.setScalar(progress);
+            });
+          }
+
+          effect.group.children.forEach(child => {
+            if (child.material && child.material.opacity !== undefined) {
+              child.material.opacity = Math.min(child.material.opacity, progress);
+            }
+          });
+        }
+      }
+
+      // Камера
+      const targetCamPos = player.position.clone().add(new THREE.Vector3(0, 6, 9));
+      camera.position.lerp(targetCamPos, 0.07);
+      camera.lookAt(player.position.x, player.position.y + 1.4, player.position.z);
+
+      // Анимация Юты
+      yutaGojo.position.y = 0.1 + Math.sin(time * 0.02) * 0.08;
+
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+    }
+
+    updateUI();
+    animate();
+
+    console.log('Игра запущена! Юта бьет только вблизи, рывок улучшен');
+  </script>
+</body>
+</html>
